@@ -107,8 +107,8 @@ elseif strcmp(whattodo,'get_timecourse')
             Mbinned(:,:,counter)       = BM'*M;
         end
     end
-    
     out = Mbinned;
+
 end
 
 % % %%
