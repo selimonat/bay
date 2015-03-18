@@ -113,11 +113,10 @@ elseif strcmp(whattodo,'plot');
     
 elseif strcmp(whattodo,'get_timecourse')    
     session        = varargin{1};
-    subject        = varargin{2};
     target_timebin = varargin{3};
     counter        = 0;
     Mbinned        = [];
-    fname          = sprintf('%stoLedalab_BayBP_S%d_%02d_matrix.mat',path,session,subject);
+    
     for subject    = varargin{2};
         fprintf('Processing subject #%03d...\n',subject);
         counter = counter + 1;
@@ -132,6 +131,7 @@ elseif strcmp(whattodo,'get_timecourse')
             Mbinned(:,:,counter)       = BM'*M;
         end
     end
+    fname = sprintf('%stoLedalab_BayBP_S%d_%02d_matrix.mat',path,session,subject);
     out = Mbinned;
     save(fname, 'out');
 
