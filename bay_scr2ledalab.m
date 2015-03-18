@@ -8,7 +8,7 @@ function out = bay_scr2ledalab(whattodo,varargin)
 %            response funct., condition information)
 %   'get_timecourse' - produces binning matrix per subject 3 dimensional
 %                      (defined timepoints (target_timebin), trials, 
-%                      amplitude)
+%                      amplitude) -> amplitudes cluster matrix per bin & trial
 
 addpath('/home/grahl/Scripts/globalfunctions/trunk');
 addpath(genpath('/home/grahl/Scripts/Ledalab/trunk'));
@@ -30,7 +30,8 @@ if strcmp(whattodo,'run');
             end
         end
     end
-    
+
+%% load results data
 elseif strcmp(whattodo,'load_results');
     %
     session      = varargin{1};
@@ -42,7 +43,8 @@ elseif strcmp(whattodo,'load_results');
         fprintf('File %s doesn''t exist.\n',fname);
         return
     end
-    
+
+%% plot SCR analysis (Ledalab)
 elseif strcmp(whattodo,'plot');
     close all
     X = 40;                    % x-axis paper size
@@ -108,9 +110,10 @@ elseif strcmp(whattodo,'plot');
         box off
         
         %% save the stuff
-        SaveFigure(fname)
+        SaveFigure(fname) % adapt saving format in SaveFigure (jpg, pdf, png,...)
     end
-    
+
+%% build 3D matrix -> SCR amplitude, time bins, trials (here: 22 heat onsets)
 elseif strcmp(whattodo,'get_timecourse')    
     session        = varargin{1};
     target_timebin = varargin{3};
@@ -135,6 +138,56 @@ elseif strcmp(whattodo,'get_timecourse')
     out = Mbinned;
     save(fname, 'out');
 
+%% plot all subjects heat matrices within one figure (per session)
+elseif strcmp(whattodo,'plot_matrix') % insert session, subjects, time-bin value
+    session         = varargin{1};
+    subject         = varargin{2};
+    target_timebin  = varargin{3};
+    plotSizeVer     = 4; % subplot size vertical
+    plotSizeHor     = 5; % subplot size horizontal
+    
+    close all
+    X = 50;                  % x-axis paper size
+    Y = 25;                    % y-axis paper size
+    xMargin = .1;               % left/right margins from page borders
+    yMargin = .2;               % bottom/top margins from page borders
+    xSize = X - 2*xMargin;     % figure size on paper (width & height)
+    ySize = Y - 2*yMargin;     % figure size on paper (width & height)
+    F = figure;
+        
+    set(F, 'PaperUnits','centimeters');
+    set(F, 'PaperSize',[X Y]);
+    set(F, 'PaperPosition',[xMargin yMargin xSize ySize]);
+    
+    subplot(plotSizeVer,plotSizeHor,1);
+    set(gca,'xtick',[],'ytick',[]);
+    axis off;
+        text(-.2,1.05,sprintf('SCR amplitudes - 18 sec. heat onset\n1 time-bin: 2 sec.\ntrials: 1-11 no TENS, 12-22 TENS'), ...
+        'Units', 'normalized', ... 
+        'VerticalAlignment', 'top', ... 
+        'HorizontalAlignment', 'left', ...
+        'Color', 'black',...
+        'FontWeight','bold',...
+        'FontSize',14);
+    
+    s = 1;
+    for subject = varargin{2};
+        s = s+1;
+        load(sprintf('%stoLedalab_BayBP_S%d_%02d_matrix.mat',path,session,subject));
+        % bay_scr2ledalab('get_timecourse',session,subject,target_timebin);
+        fprintf('Processing subject #%03d...\n',subject);
+        subplot(plotSizeVer,plotSizeHor,s);
+%         axes1 = axes('Parent',F,'YDir','reverse','Layer','top');
+        imagesc(out);
+        colorbar;
+        xlabel('trials','FontWeight','bold');
+        ylabel('time','FontWeight','bold');
+        title(sprintf('BayBP_S%d_%02d',session,subject),'interpreter','none','FontWeight','bold','FontSize', 16);
+        
+    end
+    fname = sprintf('%sBayBP_S%d_heatMatrices.pdf',path,session);
+    SaveFigure(fname); % adapt saving format in SaveFigure (jpg, pdf, png,...)
+        
 end
 
 % % bay_scr2ledalab('run',1:2,[1:3 5:19]);
