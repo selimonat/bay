@@ -1,11 +1,23 @@
 function out = bay_scr2ledalab(whattodo,varargin)
 
+% whattodo: 
+%   'run' - runs Ledalab analysis for chosen sessions & subjects CAVE:
+%           define Ledalab settings before
+%   'load_results' - loads results data
+%   'plot' - produces .png of results data (phasic, tonic, driver, impulse 
+%            response funct., condition information)
+%   'get_timecourse' - produces binning matrix per subject 3 dimensional
+%                      (defined timepoints (target_timebin), trials, 
+%                      amplitude)
+
+addpath('/home/grahl/Scripts/globalfunctions/trunk');
+addpath(genpath('/home/grahl/Scripts/Ledalab/trunk'));
 %data path
-path         =  '/Users/onat/Dropbox/Bay_SCR_Ladalab/';
+path         =  '/common/prd03/projects/bay/behavior/BayBP/SCR/toLedalab/';
 out = [];
 %% read and make Ledalab analysis
 if strcmp(whattodo,'run');
-    
+ 
     sessions = varargin{1};
     subjects = varargin{2};
     
@@ -14,7 +26,7 @@ if strcmp(whattodo,'run');
             fprintf('Running: Session: %03d; Subject: %03d...\n',session,subject);
             try
                 fname        = sprintf('%stoLedalab_BayBP_S%d_%02d.mat',path,session,subject);
-                Ledalab({fname}, 'open', 'mat','analyze','CDA', 'optimize',6, 'overview',  1, 'export_era', [-1 15 0 1], 'export_scrlist', [0 1], 'export_eta', 1);
+                Ledalab({fname}, 'open', 'mat','analyze','CDA', 'optimize',6, 'overview',  1, 'export_era', [0 18 0 1], 'export_scrlist', [0 1], 'export_eta', 1);
             end
         end
     end
@@ -33,12 +45,23 @@ elseif strcmp(whattodo,'load_results');
     
 elseif strcmp(whattodo,'plot');
     close all
-    ffigure
+    X = 40;                    % x-axis paper size
+    Y = 21;                    % y-axis paper size
+    xMargin = 2;               % left/right margins from page borders
+    yMargin = 1;               % bottom/top margins from page borders
+    xSize = X - 2*xMargin;     % figure size on paper (width & height)
+    ySize = Y - 2*yMargin;     % figure size on paper (width & height)
+    F = figure;
+    set(F, 'PaperUnits','centimeters')
+    set(F, 'PaperSize',[X Y])
+    set(F, 'PaperPosition',[xMargin yMargin xSize ySize])
+
     subplot('position',[0.025 0.15 0.95 0.8])
     session      = varargin{1};
     subject      = varargin{2};
     d            = bay_scr2ledalab('load_results',session,subject);
     fname        = sprintf('%stoLedalab_BayBP_S%d_%02d_plot.png',path,session,subject);
+    fprintf('Running: Session: %03d; Subject: %03d...\n',session,subject);
     if ~isempty(d)
         %plot the tonic and phasic drive
         plot(d.data.time.data, d.data.conductance.data,'k.-');%the raw data
@@ -78,7 +101,7 @@ elseif strcmp(whattodo,'plot');
         hold on
         axes('position',[0.75 0.75 0.2 0.2])
         
-        %plot the bateman
+        %plot the bateman (tau 1 & 2)
         plot(d.data.time.data(1:length( d.analysis.kernel)),d.analysis.kernel,'k','linewidth',2);
         title(sprintf('Bateman(%0.3g,%0.3g)',d.analysis.tau(1),d.analysis.tau(2)))
         xlabel('time (s)')
@@ -89,11 +112,13 @@ elseif strcmp(whattodo,'plot');
     end
     
 elseif strcmp(whattodo,'get_timecourse')    
-    target_timebin = varargin{3};
     session        = varargin{1};
+    subject        = varargin{2};
+    target_timebin = varargin{3};
     counter        = 0;
     Mbinned        = [];
-    for subject        = varargin{2};
+    fname          = sprintf('%stoLedalab_BayBP_S%d_%02d_matrix.mat',path,session,subject);
+    for subject    = varargin{2};
         fprintf('Processing subject #%03d...\n',subject);
         counter = counter + 1;
         %extract the data triggered with heat onset
@@ -108,8 +133,19 @@ elseif strcmp(whattodo,'get_timecourse')
         end
     end
     out = Mbinned;
+    save(fname, 'out');
 
 end
+
+% % bay_scr2ledalab('run',1:2,[1:3 5:19]);
+% % clear all; close all;
+% % bay_scr2ledalab('load_results',1:2,[1:3 5:19]);
+% % clear all; close all;
+% % bay_scr2ledalab('plot',1:2,[1:3 5:19]);
+% % clear all; close all;
+% % bay_scr2ledalab('get_timecourse',1:2,[1:3 5:19]);
+% % clear all; close all;
+
 
 % % %%
 % % clear all;
