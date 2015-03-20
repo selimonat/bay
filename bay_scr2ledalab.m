@@ -114,7 +114,7 @@ elseif strcmp(whattodo,'plot');
     end
 
 %% build 3D matrix -> SCR amplitude, time bins, trials (here: 22 heat onsets)
-elseif strcmp(whattodo,'get_timecourse')    
+elseif strcmp(whattodo,'get_timecourse')
     session        = varargin{1};
     target_timebin = varargin{3};
     counter        = 0;
@@ -126,12 +126,12 @@ elseif strcmp(whattodo,'get_timecourse')
         %extract the data triggered with heat onset
         out     = bay_scr2ledalab('load_results',session,subject);
         if ~isempty(out)
-            M       = out.analysis.split_driver.y;
-            c       = out.analysis.split_driver.c;
-            M       = M(:,ismember(c,[2 4]));
+            M_trial       = out.analysis.split_driver.y; % deconvolved SCR
+            c       = out.analysis.split_driver.c; % trigger information
+            M_trial       = M_trial(:,ismember(c,[2 4]));
             %create a binning matrix
-            [BM,centers]=BinningMatrix(size(M,1),target_timebin);
-            Mbinned(:,:,counter)       = BM'*M;
+            [BM,centers]=BinningMatrix(size(M_trial,1),target_timebin);
+            Mbinned(:,:,counter)       = BM'*M_trial;
         end
     end
     fname = sprintf('%stoLedalab_BayBP_S%d_%02d_matrix.mat',path,session,subject);
@@ -139,10 +139,11 @@ elseif strcmp(whattodo,'get_timecourse')
     save(fname, 'out');
 
 %% plot all subjects heat matrices within one figure (per session)
-elseif strcmp(whattodo,'plot_matrix') % insert session, subjects, time-bin value
+elseif strcmp(whattodo,'plot_matrix') % insert session, subjects, time-bin value, time-window in sec
     session         = varargin{1};
     subject         = varargin{2};
     target_timebin  = varargin{3};
+    time_window_sec = varargin{4}; % extracted time-window in sec. after trigger onset
     plotSizeVer     = 4; % subplot size vertical
     plotSizeHor     = 5; % subplot size horizontal
     
@@ -162,7 +163,8 @@ elseif strcmp(whattodo,'plot_matrix') % insert session, subjects, time-bin value
     subplot(plotSizeVer,plotSizeHor,1);
     set(gca,'xtick',[],'ytick',[]);
     axis off;
-        text(-.2,1.05,sprintf('SCR amplitudes - 18 sec. heat onset\n1 time-bin: 2 sec.\ntrials: 1-11 no TENS, 12-22 TENS'), ...
+    % adapt information text
+        text(-.2,1.05,sprintf('SCR amplitudes - %02d sec. heat onset\n1 time-bin: %03d ms\ntrials: 1-11 no TENS, 12-22 TENS\nheat plateau after approx. 1 sec.',time_window_sec,(target_timebin/time_window_sec)*10), ...
         'Units', 'normalized', ... 
         'VerticalAlignment', 'top', ... 
         'HorizontalAlignment', 'left', ...
@@ -177,17 +179,52 @@ elseif strcmp(whattodo,'plot_matrix') % insert session, subjects, time-bin value
         % bay_scr2ledalab('get_timecourse',session,subject,target_timebin);
         fprintf('Processing subject #%03d...\n',subject);
         subplot(plotSizeVer,plotSizeHor,s);
-%         axes1 = axes('Parent',F,'YDir','reverse','Layer','top');
         imagesc(out);
+%         imagesc(out(1:8,:)); % select time-bins you want to dislay in matrices
         colorbar;
         xlabel('trials','FontWeight','bold');
         ylabel('time','FontWeight','bold');
         title(sprintf('BayBP_S%d_%02d',session,subject),'interpreter','none','FontWeight','bold','FontSize', 16);
         
     end
-    fname = sprintf('%sBayBP_S%d_heatMatrices.pdf',path,session);
+    fname = sprintf('%sBayBP_S%d_heatMatrices_%03dbins_heatOn%02dsec.pdf',path,session,target_timebin,time_window_sec);
     SaveFigure(fname); % adapt saving format in SaveFigure (jpg, pdf, png,...)
         
+    
+    
+%% compute mean and variance  
+elseif strcmp(whattodo,'calc_stats')
+    session         = varargin{1};
+    subject         = varargin{2};
+    for session = varargin{1}
+        for subject = varargin{2};
+            load(sprintf('%stoLedalab_BayBP_S%d_%02d_matrix.mat',path,session,subject));
+            fprintf('Processing subject #%03d...\n',subject);
+            % calculate
+            M_trial = mean(out); % per trial across bins (1 value per column)
+            Variance_trial = var(out);
+            SD_trial = std(out);
+            M_time = mean(out,2); % per bin across trials (1 value per row)
+            Variance_time = var(out,0,2);
+            SD_time = std(out,0,2);
+            % save
+            s.mean_trial = M_trial;
+            s.variance_trial = Variance_trial;
+            s.standDev_trial = SD_trial;
+            s.mean_time = M_time;
+            s.variance_time = Variance_time;
+            s.standDev_time = SD_time;
+        end
+        if session == 1 S1 = [s]; end;
+        if session == 2 S2 = [s]; end;
+        
+    end
+    
+    fname = sprintf('%stoLedalab_BayBP_%02d_descrStats.mat',path,subject);
+    descr_stats.S1 = S1;
+    descr_stats.S2 = S2;
+    save(fname, 'descr_stats');
+    
 end
 
 % % bay_scr2ledalab('run',1:2,[1:3 5:19]);
