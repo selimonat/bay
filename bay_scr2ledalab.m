@@ -196,17 +196,25 @@ elseif strcmp(whattodo,'plot_matrix') % insert session, subjects, time-bin value
 elseif strcmp(whattodo,'calc_stats')
     session         = varargin{1};
     subject         = varargin{2};
-    for session = varargin{1}
-        for subject = varargin{2};
+    target_timebin  = varargin{3};
+    time_window_sec = varargin{4};
+    for subject = varargin{2}
+        for session = varargin{1};
             load(sprintf('%stoLedalab_BayBP_S%d_%02d_matrix.mat',path,session,subject));
-            fprintf('Processing subject #%03d...\n',subject);
-            % calculate
-            M_trial = mean(out); % per trial across bins (1 value per column)
+            fprintf('Processing subject #%03d... session #%d...\n',subject,session);
+            % calculate descriptive statistics
+            % per trial across bins
+            M_trial = mean(out); % 1 value per column/trial
             Variance_trial = var(out);
             SD_trial = std(out);
-            M_time = mean(out,2); % per bin across trials (1 value per row)
-            Variance_time = var(out,0,2);
-            SD_time = std(out,0,2);
+            % per bin across 11 trials per condition
+            % first column = trigger 2 (heat no TENS), second column = trigger 4 (heat TENS)
+            M_time(:,1) = mean(out(:,1:11),2); % 1 value per row per condition -> 2 columns with n bin rows
+            M_time(:,2) = mean(out(:,12:22),2);
+            Variance_time(:,1) = var(out(:,1:11),0,2);
+            Variance_time(:,2) = var(out(:,12:22),0,2);
+            SD_time(:,1) = std(out(:,1:11),0,2);
+            SD_time(:,2) = std(out(:,12:22),0,2);
             % save
             s.mean_trial = M_trial;
             s.variance_trial = Variance_trial;
@@ -214,16 +222,124 @@ elseif strcmp(whattodo,'calc_stats')
             s.mean_time = M_time;
             s.variance_time = Variance_time;
             s.standDev_time = SD_time;
+            
+            if session == 1  descr_stats.S1 = [s]; end;
+            if session == 2  descr_stats.S2 = [s]; end;
+            
         end
-        if session == 1 S1 = [s]; end;
-        if session == 2 S2 = [s]; end;
+        fname = sprintf('%stoLedalab_BayBP_%02d_descrStats.mat',path,subject);
+        save(fname, 'descr_stats');
         
     end
     
-    fname = sprintf('%stoLedalab_BayBP_%02d_descrStats.mat',path,subject);
-    descr_stats.S1 = S1;
-    descr_stats.S2 = S2;
-    save(fname, 'descr_stats');
+%% plot descriptive stats
+elseif strcmp(whattodo,'plot_stats')
+    
+    session         = varargin{1};
+    subject         = varargin{2};
+    target_timebin  = varargin{3};
+    time_window_sec = varargin{4};
+    for subject = varargin{2}
+        clear descr_stats;
+        load(sprintf('%stoLedalab_BayBP_%02d_descrStats.mat',path,subject));
+        for session = varargin{1}
+            fprintf('Processing subject #%03d... session #%d...\n',subject,session);
+            close all;
+            plotSizeVer = 4; % subplot size vertical
+            plotSizeHor = 2; % subplot size horizontal
+            X           = 25;               % x-axis paper size
+            Y           = 34;               % y-axis paper size
+            xMargin     = .1;               % left/right margins from page borders
+            yMargin     = .1;               % bottom/top margins from page borders
+            xSize       = X - 2*xMargin;    % figure size on paper (width & height)
+            ySize       = Y - 2*yMargin;    % figure size on paper (width & height)
+            
+            F = figure;
+            
+            set(F, 'PaperUnits','centimeters');
+            set(F, 'PaperSize',[X Y]);
+            set(F, 'PaperPosition',[xMargin yMargin xSize ySize]);
+            
+            % session 1 - conditioning phase
+            subplot(plotSizeVer,plotSizeHor,1);
+            plot(descr_stats.S1.mean_time(:,1),'r'); hold on; plot(descr_stats.S1.mean_time(:,2));
+            xlim([0 181]);
+            legend('no TENS','TENS','Orientation','horizontal'); legend('boxoff');
+            xlabel(sprintf('time (in %03d ms)',(target_timebin/time_window_sec)*10),'FontWeight','bold');
+            ylabel('SCR mean amplitude (in \muS)','FontWeight','bold');
+            text(.3,1.4,sprintf('BayBP%02d: SCR phasic driver - heat onset (epoch: %02d sec.)',subject, time_window_sec), ...
+                'Units', 'normalized', ...
+                'VerticalAlignment', 'top', ...
+                'HorizontalAlignment', 'left', ...
+                'Color', 'black',...
+                'FontWeight','bold',...
+                'FontSize',15);
+            text(.8,1.2,'Session 1 - conditioning phase', ...
+                'Units', 'normalized', ...
+                'VerticalAlignment', 'top', ...
+                'HorizontalAlignment', 'left', ...
+                'Color', 'black',...
+                'FontWeight','bold',...
+                'FontSize',12);
+            subplot(plotSizeVer,plotSizeHor,2);
+            plot(descr_stats.S1.mean_trial(1:11),'r'); hold on; plot(descr_stats.S1.mean_trial(12:22));
+            xlim([0 12]);
+            legend('no TENS','TENS','Orientation','horizontal'); legend('boxoff');
+            xlabel('trial','FontWeight','bold');
+            
+            subplot(plotSizeVer,plotSizeHor,3);
+            plot(descr_stats.S1.variance_time(:,1),'r'); hold on; plot(descr_stats.S1.variance_time(:,2));
+            xlim([0 181]);
+            legend('no TENS','TENS','Orientation','horizontal'); legend('boxoff');
+            xlabel(sprintf('time (in %03d ms)',(target_timebin/time_window_sec)*10),'FontWeight','bold');
+            ylabel('SCR variance','FontWeight','bold');
+            subplot(plotSizeVer,plotSizeHor,4);
+            plot(descr_stats.S1.variance_trial(1:11),'r'); hold on; plot(descr_stats.S1.variance_trial(12:22));
+            xlim([0 12]);
+            legend('no TENS','TENS','Orientation','horizontal'); legend('boxoff');
+            xlabel('trial','FontWeight','bold');
+            
+            % session 2 - placebo test phase
+            subplot(plotSizeVer,plotSizeHor,5);
+            plot(descr_stats.S2.mean_time(:,1),'r'); hold on; plot(descr_stats.S2.mean_time(:,2));
+            xlim([0 181]);
+            legend('no TENS','TENS','Orientation','horizontal'); legend('boxoff');
+            xlabel(sprintf('time (in %03d ms)',(target_timebin/time_window_sec)*10),'FontWeight','bold');
+            ylabel('SCR mean amplitude (in \muS)','FontWeight','bold');
+            text(.9,1.2,'Session 2 - test phase', ...
+                'Units', 'normalized', ...
+                'VerticalAlignment', 'top', ...
+                'HorizontalAlignment', 'left', ...
+                'Color', 'black',...
+                'FontWeight','bold',...
+                'FontSize',12);
+            subplot(plotSizeVer,plotSizeHor,6);
+            plot(descr_stats.S2.mean_trial(1:11),'r'); hold on; plot(descr_stats.S2.mean_trial(12:22));
+            xlim([0 12]);
+            legend('no TENS','TENS','Orientation','horizontal'); legend('boxoff');
+            xlabel('trial','FontWeight','bold');
+            
+            subplot(plotSizeVer,plotSizeHor,7);
+            plot(descr_stats.S2.variance_time(:,1),'r'); hold on; plot(descr_stats.S2.variance_time(:,2));
+            xlim([0 181]);
+            legend('no TENS','TENS','Orientation','horizontal'); legend('boxoff');
+            xlabel(sprintf('time (in %03d ms)',(target_timebin/time_window_sec)*10),'FontWeight','bold');
+            ylabel('SCR variance','FontWeight','bold');
+            subplot(plotSizeVer,plotSizeHor,8);
+            plot(descr_stats.S2.variance_trial(1:11),'r'); hold on; plot(descr_stats.S2.variance_trial(12:22));
+            xlim([0 12]);
+            legend('no TENS','TENS','Orientation','horizontal'); legend('boxoff');
+            xlabel('trial','FontWeight','bold');
+        end
+        
+    fname_plot = sprintf('%stoLedalab_BayBP_%02d_descrStats_plot.pdf',path,subject);
+    SaveFigure(fname_plot);   
+        
+    end
+    
+end
+
+
     
 end
 
