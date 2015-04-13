@@ -19,18 +19,19 @@ out = [];
 %% read and make Ledalab analysis
 if strcmp(whattodo,'run');
  
-    sessions = varargin{1};
-    subjects = varargin{2};
+%     sessions = varargin{1};
+    subjects = varargin{1};
     
-    for session   = sessions;
+    %     for session   = sessions;
         for subject  = subjects
-            fprintf('Running: Session: %03d; Subject: %03d...\n',session,subject);
+            fprintf('Running: Session: %03d; Subject: %03d...\n',subject);
             try
-                fname        = sprintf('%stoLedalab_BayBP_S%d_%02d.mat',path,session,subject);
+                %                 fname        = sprintf('%stoLedalab_BayBP_S%d_%02d.mat',path,session,subject);
+                fname        = sprintf('%stoLedalab_BayBP_%02d.mat',path,subject);
                 Ledalab({fname}, 'open', 'mat','analyze','CDA', 'optimize',6, 'overview',  1, 'export_era', [0 18 0 1], 'export_scrlist', [0 1], 'export_eta', 1);
             end
         end
-    end
+    %     end
 
 %% load results data
 elseif strcmp(whattodo,'load_results');
@@ -211,7 +212,7 @@ elseif strcmp(whattodo,'calc_stats')
             load(sprintf('%stoLedalab_BayBP_S%d_%02d_matrix.mat',path,session,subject));
             fprintf('Processing subject #%03d... session #%d...\n',subject,session);
             % calculate descriptive statistics
-            % per trial across bins
+            % per trial across bins/time
             M_trial = nanmean(out); % 1 value per column/trial
             Variance_trial = nanvar(out);
             SD_trial = nanstd(out);
@@ -219,10 +220,28 @@ elseif strcmp(whattodo,'calc_stats')
             % first column = trigger 2 (heat no TENS), second column = trigger 4 (heat TENS)
             M_time(:,1) = nanmean(out(:,1:11),2); % 1 value per row per condition -> 2 columns with n bin rows
             M_time(:,2) = nanmean(out(:,12:22),2);
-            Variance_time(:,1) = nanvar(out(:,1:11),0,2);
+            Variance_time(:,1) = nanvar(out(:,1:11),0,2); % variance across trials
             Variance_time(:,2) = nanvar(out(:,12:22),0,2);
-            SD_time(:,1) = nanstd(out(:,1:11),0,2);
+            SD_time(:,1) = nanstd(out(:,1:11),0,2); % SD across trials
             SD_time(:,2) = nanstd(out(:,12:22),0,2);
+            % statistics_trial: Test the null hypothesis that the variances per trial across 
+            % n time-bins are  equal comparing heatNoTens-trial with corresponding heatTens- 
+            % trial, using the Brown-Forsythe test (uses median instead of mean!)
+            for k = 1:11
+                [p_trial(k,1),stats_trial(k,1)] = vartestn(out(:,[k k+11]),'TestType','BrownForsythe','Display','off');
+                statsF_trial(k,1) = stats_trial(k).fstat(:);
+            end
+            % statistics_time: Test the null hypothesis that the variances per time-bin across 
+            % n trials are  equal comparing heatNoTens-time-bin with corresponding heatTens- 
+            % time-bin, using the Brown-Forsythe test (uses median instead of mean!)
+            out2 = out';
+            for k = 1:target_timebin
+                clear temp_time;
+                temp_time = [out2(1:11,k) out2(12:22,k)];
+                [p_time(k,1),stats_time(k,1)] = vartestn(temp_time,'TestType','BrownForsythe','Display','off');
+                statsF_time(k,1) = stats_time(k).fstat(:);
+                
+            end
             % save
             s.mean_trial = M_trial;
             s.variance_trial = Variance_trial;
@@ -230,6 +249,12 @@ elseif strcmp(whattodo,'calc_stats')
             s.mean_time = M_time;
             s.variance_time = Variance_time;
             s.standDev_time = SD_time;
+            s.ftestPval_trial = p_trial;
+            s.ftestF_trial = stats_trial;
+            s.ftestFval_trial = statsF_trial;
+            s.ftestPval_time = p_time;
+            s.ftestF_time = stats_time;
+            s.ftestFval_time = statsF_time;
             
             if session == 1  descr_stats.S1 = [s]; end;
             if session == 2  descr_stats.S2 = [s]; end;
@@ -264,6 +289,14 @@ elseif strcmp(whattodo,'calc_allSubsStats')
         statsAll.S1.SD_time(:,:,counter)  = descr_stats.S1.standDev_time';
         statsAll.S2.SD_trial(:,:,counter) = descr_stats.S2.standDev_trial;
         statsAll.S2.SD_time(:,:,counter)  = descr_stats.S2.standDev_time';
+        statsAll.S1.variance_trial(:,:,counter) = descr_stats.S1.variance_trial;
+        statsAll.S1.variance_time(:,:,counter)  = descr_stats.S1.variance_time';
+        statsAll.S2.variance_trial(:,:,counter) = descr_stats.S2.variance_trial;
+        statsAll.S2.variance_time(:,:,counter)  = descr_stats.S2.variance_time';
+        statsAll.S1.ftestFval_trial(:,:,counter)= descr_stats.S1.ftestFval_trial;
+        statsAll.S1.ftestFval_time(:,:,counter) = descr_stats.S1.ftestFval_time;
+        statsAll.S2.ftestFval_trial(:,:,counter)= descr_stats.S2.ftestFval_trial;
+        statsAll.S2.ftestFval_time(:,:,counter) = descr_stats.S2.ftestFval_time;
         
     end
 
@@ -309,6 +342,48 @@ elseif strcmp(whattodo,'calc_allSubsStats')
     Line_with = 2;
     y = 0.99; % textbox coordinates
     x = 0.35;
+    
+    % calculate mean of all F-test F-values comparing heat-NoTens vs. heat-Tens 
+    % -> per trial:
+    F_S1_trial_con = nanmean(statsAll.S1.ftestFval_trial(:,:,subs_con),3);
+    F_S1_trial_var = nanmean(statsAll.S1.ftestFval_trial(:,:,subs_var),3);
+    F_S2_trial_con = nanmean(statsAll.S2.ftestFval_trial(:,:,subs_con),3);
+    F_S2_trial_var = nanmean(statsAll.S2.ftestFval_trial(:,:,subs_var),3);
+     % -> per time-bin:
+    F_S1_time_con = nanmean(statsAll.S1.ftestFval_time(:,:,subs_con),3);
+    F_S1_time_var = nanmean(statsAll.S1.ftestFval_time(:,:,subs_var),3);
+    F_S2_time_con = nanmean(statsAll.S2.ftestFval_time(:,:,subs_con),3);
+    F_S2_time_var = nanmean(statsAll.S2.ftestFval_time(:,:,subs_var),3);
+    
+    f0 = figure;
+    set(f0, 'PaperUnits','centimeters');
+    set(f0, 'PaperSize',[X Y]);
+    set(f0, 'PaperPosition',[xMargin yMargin xSize ySize]);
+    set(f0, 'PaperOrientation','Portrait');
+    subplot(2,2,1);plot(F_S1_trial_con,'r');hold on; plot(F_S1_trial_var,'b');
+    legend({'constant', 'variable'});
+    xlabel(xLabel_plots_trial,'FontWeight','bold','FontSize',12);
+    ylabel('F-value(1,358)','FontWeight','bold','FontSize',12);
+    title('S1, Brown-Forsythe (homoscedasticity): Tens vs. noTens','FontWeight','bold','FontSize',14);
+    xlim(x_range_trial); hold off;
+    subplot(2,2,2);plot(F_S2_trial_con,'r');hold on; plot(F_S2_trial_var,'b');hold off;
+    legend({'constant', 'variable'});
+    xlabel(xLabel_plots_trial,'FontWeight','bold','FontSize',12);
+    ylabel('F-value(1,358)','FontWeight','bold','FontSize',12);
+    title('S2, Brown-Forsythe (homoscedasticity): Tens vs. noTens','FontWeight','bold','FontSize',14);
+    xlim(x_range_trial); hold off;
+    subplot(2,2,3);plot(F_S1_time_con,'r');hold on; plot(F_S1_time_var,'b');
+    legend({'constant', 'variable'});
+    xlabel(xLabel_plots_time,'FontWeight','bold','FontSize',12);
+    ylabel('F-value(1,20)','FontWeight','bold','FontSize',12);
+    title('S1, Brown-Forsythe (homoscedasticity): Tens vs. noTens','FontWeight','bold','FontSize',14);
+    xlim(x_range_time); hold off;
+    subplot(2,2,4);plot(F_S2_time_con,'r');hold on; plot(F_S2_time_var,'b');hold off;
+    legend({'constant', 'variable'});
+    xlabel(xLabel_plots_time,'FontWeight','bold','FontSize',12);
+    ylabel('F-value(1,20)','FontWeight','bold','FontSize',12);
+    title('S2, Brown-Forsythe (homoscedasticity): Tens vs. noTens','FontWeight','bold','FontSize',14);
+    xlim(x_range_time); hold off;
     
     f1 = figure;
     set(f1, 'PaperUnits','centimeters');
@@ -365,6 +440,7 @@ elseif strcmp(whattodo,'calc_allSubsStats')
     SD_S1_time_varT = nanmean(nanmean(statsAll.S1.SD_time(2,:,subs_var)));
     SD_S2_time_varN = nanmean(nanmean(statsAll.S2.SD_time(1,:,subs_var)));
     SD_S2_time_varT = nanmean(nanmean(statsAll.S2.SD_time(2,:,subs_var)));
+    
     
     % plot SCR mean amplitude per trial
     % constant
@@ -535,9 +611,10 @@ elseif strcmp(whattodo,'calc_allSubsStats')
     box off;
     hold off;
     
-    fname_plot = sprintf('%sBayBP_SCR_descrStatsAll_heatTrials.pdf',pathHome);
-    SaveFigure(fname_plot);
-    close gcf; clear a1 a2 a3 a4 a5 a6 a7 a8 f1;
+%     fname_plot = sprintf('%sBayBP_SCR_descrStatsAll_heatTrials.pdf',pathHome);
+%     SaveFigure(fname_plot);
+%     close gcf; 
+    clear a1 a2 a3 a4 a5 a6 a7 a8 f1;
     
     % plot SCR mean amplitude per timebin
     f2 = figure;
@@ -708,9 +785,9 @@ elseif strcmp(whattodo,'calc_allSubsStats')
     Labels = {'no TENS', 'TENS'};
     set(gca, 'XTick', [1 3], 'XTickLabel', Labels,'FontWeight','bold','FontSize',10);
     
-    fname_plot = sprintf('%sBayBP_SCR_descrStatsAll_heatTime.pdf',pathHome);
-    SaveFigure(fname_plot);
-    close gcf;
+%     fname_plot = sprintf('%sBayBP_SCR_descrStatsAll_heatTime.pdf',pathHome);
+%     SaveFigure(fname_plot);
+%     close gcf;
 
 
 
