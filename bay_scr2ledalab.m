@@ -9,6 +9,27 @@ function out = bay_scr2ledalab(whattodo,varargin)
 %   'get_timecourse' - produces binning matrix per subject 3 dimensional
 %                      (defined timepoints (target_timebin), trials, 
 %                      amplitude) -> amplitudes cluster matrix per bin & trial
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Ledalab functions:
+% open: biotrace, biopac, biopacmat, cassylab, leda (default), varioport, visionanalyzer, vitaport, portilab, psychlab, mat, text (Type 1), text2 (Type 2)
+% filter: [filter_order, lower-cutoff frequency]; default = no filter applied
+% downsample: 0 (default) , 2+
+% smooth: {type, width} -> type: mean (moving average), hann (hanning window), gauss (gauss window), adapt (adaptive smoothing using gauss); 
+%                       -> width: width of smoothing window in samples (does not apply for adapt)
+% analyze: 'CDA' (Discrete Decomposition Analysis), 'DDA' (Continuous Decomposition Analysis)
+% optimize: 2 (default), 1 - 6
+% export_era: [respwin_start respwin_end amp_threshold (filetype)]; filetype: 1 (Matlab file = default), 2 (Text file), 3 (Excel file)
+% export_scrlist: [amp_threshold (filetype)]; filetype: 1 (Matlab file = default), 2 (Text file), 3 (Excel file)
+% overview: 0 (default), 1 -> Save decomposition result to jpg for easy control (boolean option)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% clear all; close all;
+% bay_scr2ledalab('run_one',1:2,[1:3 5:19]);
+% clear all; close all;
+% bay_scr2ledalab('run_two',20:35);
+% clear all; close all;
+% bay_scr2ledalab('run_one',1:2,4);
+% clear all; close all;
+
 
 addpath('/home/grahl/Scripts/globalfunctions/trunk');
 addpath(genpath('/home/grahl/Scripts/Ledalab/trunk'));
@@ -16,29 +37,46 @@ addpath(genpath('/home/grahl/Scripts/Ledalab/trunk'));
 path         =  '/common/prd03/projects/bay/behavior/BayBP/SCR/toLedalab/';
 pathHome     =  '/home/grahl/Bay/Exp_bay/BehaviorP/Pics/';
 out = [];
-%% read and make Ledalab analysis
-if strcmp(whattodo,'run');
+%% read and make Ledalab analysis with one session per file
+if strcmp(whattodo,'run_one');
  
-%     sessions = varargin{1};
-    subjects = varargin{1};
+    sessions = varargin{1};
+    subjects = varargin{2};
     
-    %     for session   = sessions;
+        for session  = sessions;
         for subject  = subjects
-            fprintf('Running: Session: %03d; Subject: %03d...\n',subject);
+            fprintf('Running: Subject: %03d... Session: %d...\n',subject,session);
             try
-                %                 fname        = sprintf('%stoLedalab_BayBP_S%d_%02d.mat',path,session,subject);
-                fname        = sprintf('%stoLedalab_BayBP_%02d.mat',path,subject);
-                Ledalab({fname}, 'open', 'mat','analyze','CDA', 'optimize',6, 'overview',  1, 'export_era', [0 18 0 1], 'export_scrlist', [0 1], 'export_eta', 1);
+                fname        = sprintf('%stoLedalab_BayBP_S%d_%02d.mat',path,session,subject);
+%                 fname        = sprintf('%stoLedalab_BayBP_%02d.mat',path,subject);
+                Ledalab({fname}, 'open', 'mat','analyze','CDA', 'optimize',6, 'overview',  1, 'export_era', [0 12 0 1], 'export_scrlist', [0 1], 'export_eta', 1);
             end
         end
-    %     end
+        end
+        
+%% read and make Ledalab analysis with two sessions per file
+elseif strcmp(whattodo,'run_two');
+    path     =  '/common/prd03/projects/bay/behavior/BayBP/SCR/toLedalab/BayBP_20to35mat/';
+    subjects = varargin{1};
+    
+        for subject  = subjects
+            fprintf('Running: Subject: %03d...\n',subject);
+            try
+                fname        = sprintf('%stoLedalab_BayBP_%02d.mat',path,subject);
+                Ledalab({fname}, 'open', 'mat','analyze','CDA', 'optimize',6, 'overview',  1, 'export_era', [0 12 0 1], 'export_scrlist', [0 1], 'export_eta', 1);
+            end
+        end
 
 %% load results data
 elseif strcmp(whattodo,'load_results');
     %
     session      = varargin{1};
     subject      = varargin{2};
-    fname        = sprintf('%stoLedalab_BayBP_S%d_%02d_results.mat',path,session,subject);
+    if session   == 0
+        fname    = sprintf('%stoLedalab_BayBP_%02d_results.mat',path,subject);
+    else
+        fname    = sprintf('%stoLedalab_BayBP_S%d_%02d_results.mat',path,session,subject);
+    end
     if exist(fname) ~= 0
         out          = load(fname);
     else
@@ -63,8 +101,16 @@ elseif strcmp(whattodo,'plot');
     subplot('position',[0.025 0.15 0.95 0.8])
     session      = varargin{1};
     subject      = varargin{2};
-    d            = bay_scr2ledalab('load_results',session,subject);
-    fname        = sprintf('%stoLedalab_BayBP_S%d_%02d_plot.png',path,session,subject);
+    if session   == 0
+        d        = bay_scr2ledalab('load_results',session,subject);
+    else
+        d        = bay_scr2ledalab('load_results',session,subject);
+    end
+    if session   == 0
+        fname    = sprintf('%stoLedalab_BayBP_%02d_plot',path,subject); 
+    else
+        fname    = sprintf('%stoLedalab_BayBP_S%d_%02d_plot',path,session,subject);
+    end
     fprintf('Running: Session: %03d; Subject: %03d...\n',session,subject);
     if ~isempty(d)
         %plot the tonic and phasic drive
@@ -86,7 +132,7 @@ elseif strcmp(whattodo,'plot');
         
         %% plot a line at stimulus onset.
         tface = 4;
-        colors = [0 0 0; 1 0 0; .5 .5 .5; 0 0 1];
+        colors = [0 0 0; 1 0 0; .5 .5 .5; 0 0 1; 0 1 0];
         for ne = 1:length(d.data.event);
             %find the color that corresponds to the current contiion
             cond = d.data.event(ne).nid;
@@ -117,6 +163,10 @@ elseif strcmp(whattodo,'plot');
 
 %% build 3D matrix -> SCR amplitude, time bins, trials (here: 22 heat onsets)
 elseif strcmp(whattodo,'get_timecourse')
+%     1 - cue without TENS
+%     2 - heat without TENS
+%     3 - cue with TENS
+%     4 - heat with TENS
     session        = varargin{1};
     target_timebin = varargin{3};
     counter        = 0;
@@ -125,15 +175,33 @@ elseif strcmp(whattodo,'get_timecourse')
         for subject    = varargin{2};
             fprintf('Processing session #%1d subject #%03d...\n',session,subject);
             counter = 1; % saves one file per subject
-%             counter + 1; % builds N dimensional matrix (N = subject size)
+            %counter + 1; % builds N dimensional matrix (N = subject size)
+            clear out;
             %extract the data triggered with heat onset
-            out = bay_scr2ledalab('load_results',session,subject);
+            if subject < 20
+                out = bay_scr2ledalab('load_results',session,subject);
+            elseif subject > 19
+                out = bay_scr2ledalab('load_results',0,subject);
+            end
             if ~isempty(out)
-                M_trial = out.analysis.split_driver.y; % deconvolved SCR
-                c       = out.analysis.split_driver.c; % trigger information
-                M_trial = M_trial(:,ismember(c,[2 4]));
+                if subject < 20
+                    M_trial = out.analysis.split_driver.y; % deconvolved SCR
+                    c       = out.analysis.split_driver.c; % trigger information
+                    M_trial = M_trial(:,ismember(c,[2 4]));
+                elseif subject > 19
+                    if session == 1
+                        M_trial = out.analysis.split_driver.y(:,[3:13 25:35 47:57 69:79]); % deconvolved SCR columns of session 1
+                        c       = out.analysis.split_driver.c(:,[3:13 25:35 47:57 69:79]); % trigger information columns of session 1
+                        M_trial = M_trial(:,ismember(c,[2 4]));
+                    elseif session == 2
+                        M_trial = out.analysis.split_driver.y(:,[14:24 36:46 58:68 80:90]); % deconvolved SCR columns of session 2
+                        c       = out.analysis.split_driver.c(:,[14:24 36:46 58:68 80:90]); % trigger information columns of session 2
+                        M_trial = M_trial(:,ismember(c,[2 4]));
+                    end
+                end
                 %create a binning matrix
                 [BM,centers] = BinningMatrix(size(M_trial,1),target_timebin);
+                
                 if subject == 4 && session == 1
                     Mbinned(:,2:21,counter) = BM'*M_trial;
                     Mbinned(:,1,counter) = NaN;
@@ -153,12 +221,12 @@ elseif strcmp(whattodo,'plot_matrix') % insert session, subjects, time-bin value
     subject         = varargin{2};
     target_timebin  = varargin{3};
     time_window_sec = varargin{4}; % extracted time-window in sec. after trigger onset
-    plotSizeVer     = 4; % subplot size vertical
+    plotSizeVer     = 7; % subplot size vertical
     plotSizeHor     = 5; % subplot size horizontal
     
     close all
-    X = 50;                  % x-axis paper size
-    Y = 25;                    % y-axis paper size
+    X = 70;                  % x-axis paper size
+    Y = 40;                    % y-axis paper size
     xMargin = .1;               % left/right margins from page borders
     yMargin = .2;               % bottom/top margins from page borders
     xSize = X - 2*xMargin;     % figure size on paper (width & height)
@@ -196,7 +264,7 @@ elseif strcmp(whattodo,'plot_matrix') % insert session, subjects, time-bin value
         title(sprintf('BayBP_S%d_%02d',session,subject),'interpreter','none','FontWeight','bold','FontSize', 16);
         
     end
-    fname = sprintf('%sBayBP_S%d_heatMatrices_%03dbins_heatOn%02dsec.pdf',path,session,target_timebin,time_window_sec);
+    fname = sprintf('%sBayBP_S%d_heatMatrices_%03dbins_heatOn%02dsec_%02dsubs.pdf',path,session,target_timebin,time_window_sec,s-1);
     SaveFigure(fname); % adapt saving format in SaveFigure (jpg, pdf, png,...)
         
     
@@ -229,7 +297,11 @@ elseif strcmp(whattodo,'calc_stats')
             % trial, using the Brown-Forsythe test (uses median instead of mean!)
             for k = 1:11
                 [p_trial(k,1),stats_trial(k,1)] = vartestn(out(:,[k k+11]),'TestType','BrownForsythe','Display','off');
+%                 [p_trial(k,1),stats_trial(k,1)] = vartest(out(:,[k k+11]));
                 statsF_trial(k,1) = stats_trial(k).fstat(:);
+                [~,p2_trial(k,1:2),CI(k,1:2),statsT1_trial(k,1)] = ttest2(out(:,k),out(:,k+11));
+                statsT2_trial(k,1) = statsT1_trial(k).tstat;
+%                 [~,p2_trial(k,1:2),CI(k,1:2),statsT1_trial(k,1)]=ttest(out(:,k),out(:,k+11));
             end
             % statistics_time: Test the null hypothesis that the variances per time-bin across 
             % n trials are  equal comparing heatNoTens-time-bin with corresponding heatTens- 
@@ -239,6 +311,7 @@ elseif strcmp(whattodo,'calc_stats')
                 clear temp_time;
                 temp_time = [out2(1:11,k) out2(12:22,k)];
                 [p_time(k,1),stats_time(k,1)] = vartestn(temp_time,'TestType','BrownForsythe','Display','off');
+%                 [p_time(k,1),stats_time(k,1)] = vartest(temp_time);
                 statsF_time(k,1) = stats_time(k).fstat(:);
                 
             end
@@ -255,6 +328,13 @@ elseif strcmp(whattodo,'calc_stats')
             s.ftestPval_time = p_time;
             s.ftestF_time = stats_time;
             s.ftestFval_time = statsF_time;
+            
+            s.ttestPval_trial = p2_trial;
+            s.ttestT_trial = statsT1_trial;
+            s.ttestTval_trial = statsT2_trial;
+            s.ttestPval_time = p2_time;
+            s.ttestT_time = statsT_time;
+            s.ttestTval_time = statsT_time;
             
             if session == 1  descr_stats.S1 = [s]; end;
             if session == 2  descr_stats.S2 = [s]; end;
@@ -355,35 +435,39 @@ elseif strcmp(whattodo,'calc_allSubsStats')
     F_S2_time_con = nanmean(statsAll.S2.ftestFval_time(:,:,subs_con),3);
     F_S2_time_var = nanmean(statsAll.S2.ftestFval_time(:,:,subs_var),3);
     
+    % plot f-stats of Brown-Forsythe (2x2 subplots)
     f0 = figure;
     set(f0, 'PaperUnits','centimeters');
     set(f0, 'PaperSize',[X Y]);
     set(f0, 'PaperPosition',[xMargin yMargin xSize ySize]);
     set(f0, 'PaperOrientation','Portrait');
+    legend_f0 = {sprintf('constant (N = %.0f)',length(subs_con)),sprintf('variable (N = %.0f)',length(subs_var))};
     subplot(2,2,1);plot(F_S1_trial_con,'r');hold on; plot(F_S1_trial_var,'b');
-    legend({'constant', 'variable'});
+    legend(legend_f0); legend boxoff;
     xlabel(xLabel_plots_trial,'FontWeight','bold','FontSize',12);
-    ylabel('F-value(1,358)','FontWeight','bold','FontSize',12);
+    ylabel('mean F-value(1,358)','FontWeight','bold','FontSize',12);
     title('S1, Brown-Forsythe (homoscedasticity): Tens vs. noTens','FontWeight','bold','FontSize',14);
-    xlim(x_range_trial); hold off;
+    xlim(x_range_trial); ylim([0 250]);hold off;
     subplot(2,2,2);plot(F_S2_trial_con,'r');hold on; plot(F_S2_trial_var,'b');hold off;
-    legend({'constant', 'variable'});
+    legend(legend_f0); legend boxoff;
     xlabel(xLabel_plots_trial,'FontWeight','bold','FontSize',12);
-    ylabel('F-value(1,358)','FontWeight','bold','FontSize',12);
+    ylabel('mean F-value(1,358)','FontWeight','bold','FontSize',12);
     title('S2, Brown-Forsythe (homoscedasticity): Tens vs. noTens','FontWeight','bold','FontSize',14);
-    xlim(x_range_trial); hold off;
+    xlim(x_range_trial); ylim([0 250]);hold off;
     subplot(2,2,3);plot(F_S1_time_con,'r');hold on; plot(F_S1_time_var,'b');
-    legend({'constant', 'variable'});
+    legend(legend_f0); legend boxoff;
     xlabel(xLabel_plots_time,'FontWeight','bold','FontSize',12);
-    ylabel('F-value(1,20)','FontWeight','bold','FontSize',12);
+    ylabel('mean F-value(1,20)','FontWeight','bold','FontSize',12);
     title('S1, Brown-Forsythe (homoscedasticity): Tens vs. noTens','FontWeight','bold','FontSize',14);
-    xlim(x_range_time); hold off;
+    xlim(x_range_time); ylim([0 6]);hold off;
     subplot(2,2,4);plot(F_S2_time_con,'r');hold on; plot(F_S2_time_var,'b');hold off;
-    legend({'constant', 'variable'});
+    legend(legend_f0); legend boxoff;
     xlabel(xLabel_plots_time,'FontWeight','bold','FontSize',12);
-    ylabel('F-value(1,20)','FontWeight','bold','FontSize',12);
+    ylabel('mean F-value(1,20)','FontWeight','bold','FontSize',12);
     title('S2, Brown-Forsythe (homoscedasticity): Tens vs. noTens','FontWeight','bold','FontSize',14);
-    xlim(x_range_time); hold off;
+    xlim(x_range_time); ylim([0 6]);hold off;
+    
+    
     
     f1 = figure;
     set(f1, 'PaperUnits','centimeters');
